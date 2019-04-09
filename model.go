@@ -1,10 +1,9 @@
 package main
 
 import (
+	"github.com/gohugoio/hugo/resources/page"
 	"strings"
 	"time"
-
-	"github.com/spf13/hugo/hugolib"
 )
 
 type Page struct {
@@ -20,24 +19,25 @@ type Page struct {
 	Author       string    `json:"author"`
 }
 
-func NewPageForIndex(page *hugolib.Page) *Page {
+func NewPageForIndex(page page.Page) *Page {
 	var author string
-	switch str := page.Params["author"].(type) {
+	authors, _ := page.Param("author")
+	switch str := authors.(type) {
 	case string:
 		author = str
 	case []string:
 		author = strings.Join(str, ", ")
 	}
 	return &Page{
-		Title:        page.Title,
+		Title:        page.LinkTitle(),
 		Type:         page.Type(),
 		Section:      page.Section(),
 		Content:      page.Plain(),
-		WordCount:    float64(page.WordCount),
-		ReadingTime:  float64(page.ReadingTime),
-		Keywords:     page.Keywords,
-		Date:         page.Date,
-		LastModified: page.Lastmod,
+		WordCount:    float64(page.WordCount()),
+		ReadingTime:  float64(page.ReadingTime()),
+		Keywords:     page.Keywords(),
+		Date:         page.Date(),
+		LastModified: page.Lastmod(),
 		Author:       author,
 	}
 }

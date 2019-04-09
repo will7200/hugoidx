@@ -4,10 +4,11 @@ import (
 	"github.com/blevesearch/bleve"
 	"github.com/blevesearch/bleve/index/store/goleveldb"
 	"github.com/blevesearch/bleve/mapping"
+	"github.com/gohugoio/hugo/deps"
+	"github.com/spf13/afero"
 
+	"github.com/gohugoio/hugo/hugolib"
 	"github.com/spf13/cobra"
-	"github.com/spf13/hugo/commands"
-	"github.com/spf13/hugo/hugolib"
 	"github.com/spf13/viper"
 
 	jww "github.com/spf13/jwalterweatherman"
@@ -38,7 +39,7 @@ func InitializeConfig() {
 	if hugoCmdV.PersistentFlags().Lookup("verbose").Changed {
 		viper.Set("Verbose", Verbose)
 	}
-	commands.InitializeConfig()
+	// commands.InitializeConfig()
 }
 
 func LoadDefaultSettings() {
@@ -46,11 +47,22 @@ func LoadDefaultSettings() {
 }
 
 func buildindex() {
-	site := &hugolib.Site{}
-	err := site.Process()
+
+	mm := afero.NewOsFs()
+	cfg, _, err := hugolib.LoadConfig(hugolib.ConfigSourceDescriptor{Fs: mm, Filename: "config.toml"})
 	if err != nil {
-		jww.FATAL.Printf("error processing site: %v", err)
+		panic(err)
 	}
+	depCfg, buildCfg := deps.DepsCfg{Cfg: cfg}, hugolib.BuildCfg{SkipRender: true}
+	h, err := hugolib.NewHugoSites(depCfg)
+	if err != nil {
+		panic(err)
+	}
+	err = h.Build(buildCfg)
+	if err != nil {
+		panic(err)
+	}
+	site := h.Sites[0]
 
 	// create/index open the index
 	index, err := createOpenIndex(viper.GetString("IndexDir"))
@@ -58,18 +70,16 @@ func buildindex() {
 		jww.FATAL.Printf("error creating/opening index: %v", err)
 	}
 
-	for _, p := range site.Pages {
+	for _, p := range site.Pages() {
 		// current work around for issue #2
-		if len(p.Title) <= 0 {
+		if len(p.Title()) <= 0 {
 			continue
 		}
 		jww.INFO.Printf("params: %#v", p.Params)
-		rpl, err := p.RelPermalink()
-		if err != nil {
-			jww.FATAL.Printf("error generating permalink: %v", err)
-		}
+		rpl := p.RelPermalink()
 		jww.INFO.Printf("Indexing: %s as - %s (% x)", p.Title, rpl, rpl)
 		pi := NewPageForIndex(p)
+		p.Summary()
 
 		err = index.Index(rpl, pi)
 		if err != nil {
